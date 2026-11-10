@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Waves
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -328,6 +329,7 @@ fun FullPlayerItem(
     livePositionFlow: Flow<Double>?,
     bufferedAheadSecFlow: Flow<Double>? = null,
     lyricsAvailable: Boolean = false,
+    isLyricsActive: Boolean = false,
     onLyricsClick: () -> Unit = {},
     // The quality pill and the speed pill only ask for their dialog; the dialogs themselves
     // live outside the pager so a page change cannot tear them down mid-gesture.
@@ -371,7 +373,8 @@ fun FullPlayerItem(
                 .aspectRatio(1f)
                 .heightIn(max = 500.dp)
                 .clip(RoundedCornerShape(16.dp))
-                .background(colors.dominant.alphaOn(currentMedia != null)),
+                .background(colors.dominant.alphaOn(currentMedia != null))
+                .clickable(enabled = lyricsAvailable, onClick = onLyricsClick),
             contentAlignment = Alignment.Center,
         ) {
             currentMedia?.imageUrl?.let {
@@ -833,7 +836,7 @@ fun FullPlayerItem(
                     onClick = onLyricsClick,
                 ) {
                     Icon(
-                        imageVector = Icons.Outlined.Lyrics,
+                        imageVector = if (isLyricsActive) Icons.Filled.Lyrics else Icons.Outlined.Lyrics,
                         contentDescription = stringResource(
                             if (item.queueInfo?.currentItem?.track is PodcastEpisode) {
                                 Res.string.cd_transcript
@@ -841,7 +844,7 @@ fun FullPlayerItem(
                                 Res.string.cd_lyrics
                             },
                         ),
-                        tint = colors.controlTint,
+                        tint = if (isLyricsActive) MaterialTheme.colorScheme.primary else colors.controlTint,
                     )
                 }
             } else {

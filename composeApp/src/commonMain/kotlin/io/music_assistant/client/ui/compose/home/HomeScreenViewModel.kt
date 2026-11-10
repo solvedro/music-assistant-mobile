@@ -27,6 +27,7 @@ import io.music_assistant.client.data.play.PlayMode
 import io.music_assistant.client.data.play.PlayRequest
 import io.music_assistant.client.data.repository.MediaItemChange
 import io.music_assistant.client.data.repository.MediaItemRepository
+import io.music_assistant.client.data.repository.LyricsRepository
 import io.music_assistant.client.data.repository.SendspinDelayRepository
 import io.music_assistant.client.data.repository.TranscriptRepository
 import io.music_assistant.client.data.repository.favoriteAfter
@@ -96,6 +97,7 @@ class HomeScreenViewModel(
     private val playDispatcher: PlayDispatcher,
     private val transcriptRepository: TranscriptRepository,
     private val sendspinDelays: SendspinDelayRepository,
+    private val lyricsRepository: LyricsRepository,
 ) : ViewModel() {
     private val jobs = mutableListOf<Job>()
     private var loadDataJob: Job? = null
@@ -120,6 +122,19 @@ class HomeScreenViewModel(
 
     /** The transcript of [episode], as [loadTranscript] loads it. */
     fun transcript(episode: PodcastEpisode): StateFlow<DataState<Lyrics>> = transcriptRepository.transcript(episode)
+
+    /** Loads lyrics of [track] once, with MA server and LRCLIB fallback. See [LyricsRepository]. */
+    fun loadLyrics(track: Track) = lyricsRepository.load(track)
+
+    /** Loads lyrics for given [title] and [artist] (e.g. from stream/radio metadata or queue item). */
+    fun loadLyrics(title: String?, artist: String?, duration: Double = 0.0, track: Track? = null) =
+        lyricsRepository.load(title, artist, duration, track)
+
+    /** The lyrics of [track], as [loadLyrics] loads it. */
+    fun lyrics(track: Track): StateFlow<DataState<Lyrics>> = lyricsRepository.lyrics(track)
+
+    /** The lyrics of [key], as [loadLyrics] loads it. */
+    fun lyrics(key: String): StateFlow<DataState<Lyrics>> = lyricsRepository.lyrics(key)
 
     /**
      * Server-synced `audiobook_chapter_progress` gate for the chapter-relative timeline.

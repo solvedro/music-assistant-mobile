@@ -1,6 +1,7 @@
 package io.music_assistant.client.ui.compose.home.players
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -91,6 +92,7 @@ fun LyricsSheet(
     livePositionFlow: Flow<Double>?,
     onDismiss: () -> Unit,
     kind: LyricsSheetKind = LyricsSheetKind.LYRICS,
+    onSeek: ((Long) -> Unit)? = null,
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -110,6 +112,7 @@ fun LyricsSheet(
                 .fillMaxWidth()
                 .fillMaxHeight(LYRICS_BOTTOM_SHEET_HEIGHT)
                 .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)),
+            onSeek = onSeek,
         )
     }
 }
@@ -125,6 +128,7 @@ fun LyricsPanel(
     modifier: Modifier = Modifier,
     // A sheet closes downwards; beside the player the arrow would look like collapsing the player.
     closeIcon: ImageVector = Icons.Default.ExpandMore,
+    onSeek: ((Long) -> Unit)? = null,
 ) {
     var offsetMs by remember(lyrics) { mutableStateOf(0) }
     var keepScreenOn by remember { mutableStateOf(false) }
@@ -214,6 +218,7 @@ fun LyricsPanel(
                     livePositionFlow = livePositionFlow,
                     offsetMs = offsetMs,
                     modifier = Modifier.fillMaxWidth().weight(1f),
+                    onSeek = onSeek,
                 )
             }
         }
@@ -305,6 +310,7 @@ private fun SyncedLyrics(
     livePositionFlow: Flow<Double>?,
     offsetMs: Int = 0,
     modifier: Modifier = Modifier,
+    onSeek: ((Long) -> Unit)? = null,
 ) {
     val synced = livePositionFlow != null
     val positionSec by (livePositionFlow ?: emptyFlow()).collectAsState(initial = 0.0)
@@ -341,7 +347,14 @@ private fun SyncedLyrics(
             val active = index == currentIndex
             // An invisible bold copy sizes every line, so activating a line never
             // re-wraps it and shifts the list; only the visible copy changes weight.
-            Box(modifier = Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .then(
+                        if (onSeek != null) Modifier.clickable { onSeek(line.timeMs) } else Modifier
+                    ),
+            ) {
                 Text(
                     text = line.text,
                     fontSize = 28.sp,

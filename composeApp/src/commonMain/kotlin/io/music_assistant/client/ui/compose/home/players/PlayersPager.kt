@@ -43,6 +43,7 @@ import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MoreVert
@@ -91,6 +92,7 @@ import io.music_assistant.client.data.model.client.AppMediaItemFixtures
 import io.music_assistant.client.data.model.client.PlayerData
 import io.music_assistant.client.data.model.client.PlayerDataFixtures
 import io.music_assistant.client.data.model.client.PlayerDataFixtures.toQueue
+import io.music_assistant.client.data.model.client.Lyrics
 import io.music_assistant.client.data.model.client.PlayerDataFixtures.toQueueTrack
 import io.music_assistant.client.data.model.client.QueueOption
 import io.music_assistant.client.data.model.client.chapterSeekSeconds
@@ -338,17 +340,42 @@ fun PlayersPager(
                 // un-remembered lambda would be a new instance every pass and the page below
                 // would never skip recomposition.
                 val playerId = player.playerId
+                val isCurrentPage = page == playerPagerState.currentPage
                 val currentQueueItem = player.queueInfo?.currentItem
                 val currentTrack = currentQueueItem?.track as? Track
+                val currentMedia = player.player.currentMedia
+                val mediaTitle = currentTrack?.name ?: currentMedia?.title
+                val mediaArtist = currentTrack?.artists?.firstOrNull()?.name ?: currentMedia?.artist
+                val mediaDuration = currentTrack?.duration?.toDouble() ?: currentMedia?.duration ?: 0.0
+                val mediaKey = remember(mediaArtist, mediaTitle) {
+                    if (!mediaTitle.isNullOrBlank()) "${mediaArtist.orEmpty().trim()} - ${mediaTitle.trim()}".trim() else ""
+                }
+
                 // The transcript of an episode loads once its page is expanded, like the web fullscreen player.
                 val transcript = (currentQueueItem?.track as? PodcastEpisode)?.takeIf { expanded }?.let { episode ->
                     LaunchedEffect(episode.provider, episode.itemId) { homeScreenViewModel.loadTranscript(episode) }
                     remember(episode.provider, episode.itemId) { homeScreenViewModel.transcript(episode) }
                         .collectAsStateWithLifecycle().value.dataOrNull
                 }
-                val lyrics = currentTrack?.lyrics ?: transcript
+                val mediaLyricsState = if (mediaKey.isNotBlank() && expanded) {
+                    LaunchedEffect(mediaKey) {
+                        homeScreenViewModel.loadLyrics(mediaTitle, mediaArtist, mediaDuration, currentTrack)
+                    }
+                    remember(mediaKey) { homeScreenViewModel.lyrics(mediaKey) }
+                        .collectAsStateWithLifecycle().value
+                } else null
+
+                val lyricsData = currentTrack?.lyrics ?: mediaLyricsState?.dataOrNull ?: transcript
+                val isLoadingLyrics = mediaLyricsState is DataState.Loading && lyricsData == null
+                val effectiveLyrics = lyricsData ?: if (isLoadingLyrics) {
+                    Lyrics.Plain("Loading lyrics...")
+                } else {
+                    Lyrics.Plain("No lyrics available")
+                }
+
+                val lyricsKey = currentQueueItem?.track?.itemId ?: mediaKey.takeIf { it.isNotBlank() }
+                val lyricsAvailable = isCurrentPage && (lyricsData != null || isLoadingLyrics || !mediaTitle.isNullOrBlank())
                 val trackId = currentTrack?.itemId
-                val lyricsItemId = currentQueueItem?.track?.itemId
                 val queueItemId = currentQueueItem?.id
                 val onDspButton: () -> Unit = remember(playerId) {
                     {
@@ -370,9 +397,9 @@ fun PlayersPager(
                         dialogRequest = PlayerDialogRequest.AmbientSound(playerId)
                     }
                 }
-                val onLyricsClick: () -> Unit = remember(playerId, lyricsItemId) {
+                val onLyricsClick: () -> Unit = remember(playerId, lyricsKey) {
                     {
-                        lyricsItemId?.let {
+                        lyricsKey?.let {
                             dialogRequest = if (dialogRequest is PlayerDialogRequest.Lyrics) {
                                 null
                             } else {
@@ -449,9 +476,6 @@ fun PlayersPager(
                                 null
                             }
                         }
-                        // Only the displayed page drives the shared lyrics VM, so the button
-                        // tracks the player currently on screen.
-                        val isCurrentPage = page == playerPagerState.currentPage
                         if (!expanded) {
                             CollapsedPlayerPage(
                                 isWideScreen = isWideScreen,
@@ -506,7 +530,13 @@ fun PlayersPager(
                                 navigateToItem = navigateToItem,
                                 livePositionFlow = livePositionFlow,
                                 bufferedAheadSecFlow = bufferedAheadSecFlow,
-                                lyricsAvailable = isCurrentPage && lyrics != null,
+                                lyricsAvailable = lyricsAvailable,
+                                isLyricsActive = (dialogRequest as? PlayerDialogRequest.Lyrics)?.playerId == playerId,
+                                lyrics = effectiveLyrics,
+                                onDismissLyrics = { dialogRequest = null },
+                                onSeek = { timeMs ->
+                                    homeScreenViewModel.playerAction(player, PlayerAction.SeekTo((timeMs / 1000L).coerceAtLeast(0L)))
+                                },
                                 onLyricsClick = onLyricsClick,
                                 pagerStart = pagerStart,
                                 leftPageOverride = (dialogRequest as? PlayerDialogRequest.Lyrics)
@@ -623,6 +653,10 @@ private fun ExpandedPlayerPage(
     livePositionFlow: Flow<Double>?,
     bufferedAheadSecFlow: Flow<Double>? = null,
     lyricsAvailable: Boolean = false,
+    isLyricsActive: Boolean = false,
+    lyrics: Lyrics? = null,
+    onDismissLyrics: () -> Unit = {},
+    onSeek: (Long) -> Unit = {},
     onLyricsClick: () -> Unit = {},
     onAudioChainClick: () -> Unit = {},
     onPlaybackSpeedClick: () -> Unit = {},
@@ -781,7 +815,8 @@ private fun ExpandedPlayerPage(
                     modifier = Modifier
                         .padding(top = 8.dp)
                         .conditional(showSideQueue && pageSplit == null) {
-                            weight(PLAYER_PANE_WEIGHT)
+                            val playerWeight = if (isLyricsActive) 1.1f else PLAYER_PANE_WEIGHT
+                            weight(playerWeight)
                                 .widthIn(max = WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND.dp)
                         },
                 ) {
@@ -848,6 +883,7 @@ private fun ExpandedPlayerPage(
                                 onFavoriteStreamClick = onFavoriteStreamClick,
                                 canFavoriteStream = canFavoriteStream,
                                 lyricsAvailable = lyricsAvailable,
+                                isLyricsActive = isLyricsActive,
                                 onLyricsClick = onLyricsClick,
                                 onAudioChainClick = onAudioChainClick,
                                 onPlaybackSpeedClick = onPlaybackSpeedClick,
@@ -1016,21 +1052,40 @@ private fun ExpandedPlayerPage(
                     }
                 }
 
-                if (showSideQueue && pageSplit == null && player.queue is DataState.Data) {
-                    Queue(
-                        modifier = Modifier.weight(QUEUE_PANE_WEIGHT),
-                        queue = player.queue,
-                        onGoToLibrary = onClose,
-                        isQueueExpanded = true,
-                        isCurrentPage = isCurrentPage,
-                        contentPadding = contentPadding,
-                        queueAction = queueAction,
-                        onAddToPlaylist = onAddToPlaylist,
-                        livePositionFlow = livePositionFlow,
-                        onChapterClick = { chapter ->
-                            playerAction(player, PlayerAction.SeekTo(chapterSeekSeconds(chapter.start)))
-                        },
-                    )
+                if (showSideQueue && pageSplit == null) {
+                    if (isLyricsActive) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .padding(top = 8.dp, bottom = 8.dp, end = 16.dp),
+                        ) {
+                            LyricsPanel(
+                                lyrics = lyrics ?: Lyrics.Plain("Loading lyrics..."),
+                                livePositionFlow = livePositionFlow,
+                                onDismiss = onDismissLyrics,
+                                kind = if (player.queueInfo?.currentItem?.track is PodcastEpisode) LyricsSheetKind.TRANSCRIPT else LyricsSheetKind.LYRICS,
+                                modifier = Modifier.fillMaxSize(),
+                                closeIcon = Icons.Default.Close,
+                                onSeek = onSeek,
+                            )
+                        }
+                    } else if (player.queue is DataState.Data) {
+                        Queue(
+                            modifier = Modifier.weight(QUEUE_PANE_WEIGHT),
+                            queue = player.queue,
+                            onGoToLibrary = onClose,
+                            isQueueExpanded = true,
+                            isCurrentPage = isCurrentPage,
+                            contentPadding = contentPadding,
+                            queueAction = queueAction,
+                            onAddToPlaylist = onAddToPlaylist,
+                            livePositionFlow = livePositionFlow,
+                            onChapterClick = { chapter ->
+                                playerAction(player, PlayerAction.SeekTo(chapterSeekSeconds(chapter.start)))
+                            },
+                        )
+                    }
                 }
             }
         }

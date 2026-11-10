@@ -57,7 +57,9 @@ sealed interface PlayerDialogRequest {
  */
 fun PlayerDialogRequest.hasAnchor(player: PlayerData): Boolean = when (this) {
     is PlayerDialogRequest.Lyrics ->
-        player.queueInfo?.currentItem?.track?.itemId == itemId
+        player.queueInfo?.currentItem?.track?.itemId == itemId ||
+            "${player.player.currentMedia?.artist.orEmpty()} - ${player.player.currentMedia?.title.orEmpty()}".trim() == itemId ||
+            !player.player.currentMedia?.title.isNullOrBlank()
 
     is PlayerDialogRequest.ChooseArtist ->
         (player.queueInfo?.currentItem?.track as? Track)?.itemId == trackId

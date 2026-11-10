@@ -4,6 +4,10 @@
 
 The (official) Music Assistant Mobile app is a cross-platform client application designed for Android and iOS. Developed using Kotlin Multiplatform (KMP) and Compose Multiplatform frameworks, this project aims to provide a unified codebase for seamless music management across mobile platforms.
 
+<p align="center">
+  <img src="docs/screenshots/echo-show-8-lyrics.png" alt="Music Assistant on Echo Show 8 with side-by-side synchronized lyrics mode" width="850">
+</p>
+
 ## Features
 
 *Disclaimer: This app is not intended to provide offline playback*
@@ -12,9 +16,10 @@ The (official) Music Assistant Mobile app is a cross-platform client application
   - managing MA players queues and playback;
   - managing dynamic and static groups (no static group creation);
   - local playback on device from MA library (Sendspin streaming protocol over WebRTC or WebSocket);
-  - comprehensive Settings screen with section-based UI for server connection, authentication (builtin/OAuth), and local player configuration.
+  - comprehensive Settings screen with section-based UI for server connection, authentication (builtin/OAuth), and local player configuration;
+  - side-by-side landscape mode on tablets and smart displays (e.g. Echo Show 8) with real-time synchronized lyrics, centered auto-scrolling, tap-to-seek, and automatic LRCLIB fallback.
 - Android-specific:
-  - requires Android 9 or later; 
+  - requires Android 7.1.2 (API 25) or later (including FireOS 6 on Amazon Echo Show 8 1st/2nd Gen); 
   - media service (background playback) and media notification in system area for quick access to players controls;
   - Android Auto support for the built-in player, plus voice playback ("Hey Google, play *X* on Music Assistant") via Google Assistant and Gemini App Actions — works in the car *and* on the phone, single symmetric code path. Full phrase reference, architecture notes and testing in [ANDROID-AUTO.md](docs/ANDROID-AUTO.md).
 - iOS-specific:

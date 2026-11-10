@@ -14,6 +14,7 @@ import io.music_assistant.client.data.model.client.items.AppMediaItem
 import io.music_assistant.client.data.model.client.items.PodcastEpisode
 import io.music_assistant.client.data.model.client.items.Track
 import io.music_assistant.client.data.repository.QueueOverlayRepository
+import io.music_assistant.client.ui.compose.common.DataState
 import io.music_assistant.client.ui.compose.common.action.PlayerAction
 import io.music_assistant.client.ui.compose.common.items.AddToPlaylistDialog
 import io.music_assistant.client.ui.compose.common.items.ChooseArtistDialog
@@ -22,6 +23,7 @@ import io.music_assistant.client.ui.compose.home.HomeScreenViewModel
 import io.music_assistant.client.ui.compose.home.players.announcement.AnnouncementDialog
 import io.music_assistant.client.ui.compose.provider.ProviderViewModel
 import io.music_assistant.client.ui.utils.DeviceChrome
+import io.music_assistant.client.ui.utils.WindowClass
 import kotlinx.coroutines.flow.Flow
 import org.koin.compose.koinInject
 
@@ -66,9 +68,20 @@ fun PlayerDialogHost(
             onDismissRequest = onDismiss,
         )
 
-        is PlayerDialogRequest.Lyrics -> if (pageSplitOrNull(lyricsOpen = true) == null) {
-            ResolvedLyrics(player, homeScreenViewModel, request, onDismiss) { lyrics, livePositionFlow, kind ->
-                LyricsSheet(lyrics, livePositionFlow, onDismiss, kind)
+        is PlayerDialogRequest.Lyrics -> {
+            val showSideQueue = WindowClass.isWide()
+            if (pageSplitOrNull(lyricsOpen = true) == null && !showSideQueue) {
+                ResolvedLyrics(player, homeScreenViewModel, request, onDismiss) { lyrics, livePositionFlow, kind ->
+                    LyricsSheet(
+                        lyrics = lyrics,
+                        livePositionFlow = livePositionFlow,
+                        onDismiss = onDismiss,
+                        kind = kind,
+                        onSeek = { timeMs ->
+                            homeScreenViewModel.playerAction(player, PlayerAction.SeekTo((timeMs / 1000L).coerceAtLeast(0L)))
+                        },
+                    )
+                }
             }
         }
 
@@ -151,7 +164,17 @@ fun LyricsPage(
 ) {
     val player = players.byId(request.playerId) ?: return
     ResolvedLyrics(player, homeScreenViewModel, request, onDismiss) { lyrics, livePositionFlow, kind ->
-        LyricsPanel(lyrics, livePositionFlow, onDismiss, kind, modifier, closeIcon = Icons.Default.Close)
+        LyricsPanel(
+            lyrics = lyrics,
+            livePositionFlow = livePositionFlow,
+            onDismiss = onDismiss,
+            kind = kind,
+            modifier = modifier,
+            closeIcon = Icons.Default.Close,
+            onSeek = { timeMs ->
+                homeScreenViewModel.playerAction(player, PlayerAction.SeekTo((timeMs / 1000L).coerceAtLeast(0L)))
+            },
+        )
     }
 }
 
@@ -163,20 +186,56 @@ private fun ResolvedLyrics(
     onDismiss: () -> Unit,
     content: @Composable (Lyrics, Flow<Double>?, LyricsSheetKind) -> Unit,
 ) {
+    val currentMedia = player.player.currentMedia
     val item = player.queueInfo?.currentItem?.track
-    val lyrics = when (item) {
-        is Track -> item.lyrics
-        is PodcastEpisode -> remember(item.provider, item.itemId) { homeScreenViewModel.transcript(item) }
-            .collectAsStateWithLifecycle().value.dataOrNull
+    if (currentMedia == null && item == null) {
+        return DismissEffect(request, onDismiss)
+    }
 
-        else -> null
-    } ?: return DismissEffect(request, onDismiss)
+    val currentTrack = item as? Track
+    val title = currentTrack?.name ?: currentMedia?.title
+    val artist = currentTrack?.artists?.firstOrNull()?.name ?: currentMedia?.artist
+    val duration = currentTrack?.duration?.toDouble() ?: currentMedia?.duration ?: 0.0
+
+    val mediaKey = remember(artist, title) {
+        if (!title.isNullOrBlank()) "${artist.orEmpty().trim()} - ${title.trim()}".trim() else ""
+    }
+
+    LaunchedEffect(mediaKey) {
+        if (mediaKey.isNotBlank()) {
+            homeScreenViewModel.loadLyrics(title, artist, duration, currentTrack)
+        }
+    }
+
+    val mediaLyricsState = remember(mediaKey) {
+        if (mediaKey.isNotBlank()) homeScreenViewModel.lyrics(mediaKey)
+        else kotlinx.coroutines.flow.MutableStateFlow(DataState.NoData())
+    }.collectAsStateWithLifecycle().value
+
+    val transcript = (item as? PodcastEpisode)?.let { ep ->
+        remember(ep.provider, ep.itemId) { homeScreenViewModel.transcript(ep) }
+            .collectAsStateWithLifecycle().value.dataOrNull
+    }
+
+    val lyrics = currentTrack?.lyrics ?: mediaLyricsState.dataOrNull ?: transcript
+
+    val isLoading = (mediaLyricsState is DataState.Loading && lyrics == null) ||
+        (item is PodcastEpisode && remember(item.provider, item.itemId) {
+            homeScreenViewModel.transcript(item)
+        }.collectAsStateWithLifecycle().value is DataState.Loading)
+
+    val effectiveLyrics = lyrics ?: if (isLoading) {
+        Lyrics.Plain("Loading lyrics...")
+    } else {
+        Lyrics.Plain("No lyrics available")
+    }
+
     val queueId = player.queueId
     val livePositionFlow = remember(queueId) {
         queueId?.let { homeScreenViewModel.observePosition(it) }
     }
     content(
-        lyrics,
+        effectiveLyrics,
         livePositionFlow,
         if (item is PodcastEpisode) LyricsSheetKind.TRANSCRIPT else LyricsSheetKind.LYRICS,
     )
