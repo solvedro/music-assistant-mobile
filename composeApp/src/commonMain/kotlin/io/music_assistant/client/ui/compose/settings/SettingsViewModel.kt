@@ -174,6 +174,14 @@ class SettingsViewModel(
     fun setAllowLandscapeOnAllDevices(enabled: Boolean) =
         settings.setAllowLandscapeOnAllDevices(enabled)
 
+    // In-process WireGuard Userspace Tunnel
+    val wireguardEnabled = settings.wireguardEnabled
+    val wireguardConfig = settings.wireguardConfig
+    val wireguardStatus = settings.wireguardStatus
+
+    fun setWireguardConfig(cfg: String) = settings.setWireguardConfig(cfg)
+    fun setWireguardEnabled(enabled: Boolean): Int = settings.setWireguardEnabled(enabled)
+
     // Connection method preference
     val preferredConnectionMethod = settings.preferredConnectionMethod
 

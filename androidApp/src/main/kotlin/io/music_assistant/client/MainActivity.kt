@@ -9,6 +9,7 @@ import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.asLiveData
 import co.touchlab.kermit.Logger
 import io.music_assistant.client.api.DeepLinkBus
@@ -37,17 +38,17 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
-        // Lock orientation on compact devices, unless the user opted out. The
-        // manifest declares no screenOrientation, so re-applying this live only
-        // triggers a configuration change the activity already handles itself.
-        settings.allowLandscapeOnAllDevices.asLiveData()
-            .observe(this) { allowLandscape ->
-                requestedOrientation = if (!allowLandscape && isCompactDevice()) {
-                    ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                } else {
-                    ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                }
-            }
+        // Auto-detect Echo Show / Amazon devices to lock landscape;
+        // on phones / standard devices, allow normal portrait / auto-rotate orientation.
+        val isEchoShow = Build.MANUFACTURER.equals("Amazon", ignoreCase = true) ||
+            Build.MODEL.contains("Echo", ignoreCase = true) ||
+            Build.DEVICE.equals("crown", ignoreCase = true)
+
+        if (isEchoShow) {
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        } else {
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER
+        }
 
         // Provide OAuthHandler to AuthenticationManager
         authManager.oauthHandler = oauthHandler
@@ -61,7 +62,7 @@ class MainActivity : ComponentActivity() {
                     val serviceIntent = Intent(this, MainMediaPlaybackService::class.java)
                     serviceIntent.action = "ACTION_PLAY"
                     try {
-                        startForegroundService(serviceIntent)
+                        ContextCompat.startForegroundService(this, serviceIntent)
                     } catch (e: Exception) {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
                             e is ForegroundServiceStartNotAllowedException

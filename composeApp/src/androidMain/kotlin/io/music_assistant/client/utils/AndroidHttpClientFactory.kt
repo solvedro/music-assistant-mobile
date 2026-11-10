@@ -4,6 +4,7 @@ import android.content.Context
 import io.ktor.client.HttpClient
 import io.ktor.client.HttpClientConfig
 import io.ktor.client.engine.okhttp.OkHttp
+import io.music_assistant.client.wireguard.WireGuardTunnel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -49,6 +50,7 @@ class AndroidHttpClientFactory(
             config {
                 sslSocketFactory(socketFactory, trustManager)
                 connectionPool(connectionPool)
+                proxySelector(WireGuardTunnel.proxySelector)
             }
         }
         block()

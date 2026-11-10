@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Bundle
 import android.support.v4.media.MediaBrowserCompat
 import android.support.v4.media.session.PlaybackStateCompat
+import androidx.core.content.ContextCompat
 import androidx.media.MediaBrowserServiceCompat
 import androidx.media.utils.MediaConstants
 import io.music_assistant.client.R
@@ -296,7 +297,7 @@ class AndroidAutoPlaybackService : MediaBrowserServiceCompat() {
                         Intent(this@AndroidAutoPlaybackService, MainMediaPlaybackService::class.java)
                     intent.action = "ACTION_PLAY"
                     try {
-                        startForegroundService(intent)
+                        ContextCompat.startForegroundService(this@AndroidAutoPlaybackService, intent)
                     } catch (e: Exception) {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
                             e is ForegroundServiceStartNotAllowedException

@@ -24,15 +24,11 @@ import dev.whyoleg.cryptography.random.CryptographyRandom
 internal class CryptographyKotlinNoiseCrypto(
     private val provider: CryptographyProvider = CryptographyProvider.Default,
     private val x25519: X25519Backend = defaultX25519Backend(provider),
+    private val aead: AeadBackend = defaultAeadBackend(provider),
 ) : NoiseCrypto {
     private val logger = Logger.withTag("NoiseCrypto")
 
-    // Resolved once — hashing hits these on the hot path. The AEAD
-    // algorithm is deliberately NOT cached: the JDK provider pools Cipher
-    // instances per algorithm handle, and a shared pool trips the JDK's
-    // key+nonce-reuse guard when one process runs both Noise roles
-    // (loopback tests) — encrypt and decrypt legitimately use the same
-    // key and nonce there.
+    // Resolved once — hashing hits these on the hot path.
     private val sha256Hasher by lazy { provider.get(SHA256).hasher() }
     private val hmac by lazy { provider.get(HMAC) }
 
@@ -44,44 +40,19 @@ internal class CryptographyKotlinNoiseCrypto(
     override suspend fun dh(privateKey: ByteArray, publicKey: ByteArray): ByteArray =
         x25519.sharedSecret(privateKey, publicKey)
 
-    @OptIn(DelicateCryptographyApi::class)
     override suspend fun aeadEncrypt(
         key: ByteArray,
         nonce: ByteArray,
         associatedData: ByteArray,
         plaintext: ByteArray,
-    ): ByteArray {
-        val cipherKey = provider.get(ChaCha20Poly1305)
-            .keyDecoder()
-            .decodeFromByteArray(ChaCha20Poly1305.Key.Format.RAW, key)
-        // Explicit caller-managed nonce: Noise supplies its own counter-based
-        // nonces, so the auto-IV encrypt() variants (which prepend a random
-        // IV) must not be used here.
-        return cipherKey.cipher().encryptWithIv(nonce, plaintext, associatedData)
-    }
+    ): ByteArray = aead.encrypt(key, nonce, associatedData, plaintext)
 
-    @OptIn(DelicateCryptographyApi::class)
     override suspend fun aeadDecrypt(
         key: ByteArray,
         nonce: ByteArray,
         associatedData: ByteArray,
         ciphertext: ByteArray,
-    ): ByteArray? {
-        val cipherKey = provider.get(ChaCha20Poly1305)
-            .keyDecoder()
-            .decodeFromByteArray(ChaCha20Poly1305.Key.Format.RAW, key)
-        return try {
-            cipherKey.cipher().decryptWithIv(nonce, ciphertext, associatedData)
-        } catch (e: Exception) {
-            // Tag/AAD mismatch surfaces as an exception from the underlying
-            // platform crypto; Noise treats it as a nullable auth failure.
-            // Logged at debug because this catch is broad: a configuration
-            // bug (wrong key/IV size) would otherwise masquerade as a forged
-            // message.
-            logger.d(e) { "AEAD decrypt failed" }
-            null
-        }
-    }
+    ): ByteArray? = aead.decrypt(key, nonce, associatedData, ciphertext)
 
     override suspend fun sha256(data: ByteArray): ByteArray = sha256Hasher.hash(data)
 

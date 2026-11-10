@@ -132,3 +132,10 @@
 # ---------------------------------------------------------------------------
 -keep class com.russhwolf.settings.** { *; }
 -dontwarn com.russhwolf.settings.**
+
+# ---------------------------------------------------------------------------
+# WireGuard in-process userspace tunnel JNI
+# ---------------------------------------------------------------------------
+-keep class io.music_assistant.client.wireguard.** { *; }
+-keepclassmembers class io.music_assistant.client.wireguard.** { *; }
+

@@ -79,6 +79,7 @@ import io.music_assistant.client.ui.compose.common.clearFocusOnScroll
 import io.music_assistant.client.ui.compose.common.toDisplayString
 import io.music_assistant.client.ui.compose.nav.TopBarLayout
 import io.music_assistant.client.ui.compose.settings.sections.SendspinSettingsSection
+import io.music_assistant.client.ui.compose.settings.sections.WireGuardSettingsSection
 import io.music_assistant.client.ui.theme.AccentColor
 import io.music_assistant.client.ui.theme.ThemeSetting
 import io.music_assistant.client.ui.theme.ThemeViewModel
@@ -400,6 +401,18 @@ fun SettingsScreen(goHome: () -> Unit, exitApp: () -> Unit) {
                     current = accent.value,
                     darkTheme = theme.value.isDark(),
                     onChange = themeViewModel::setAccentColor,
+                )
+
+                // WireGuard (In-Process) - always visible
+                val wgEnabled by viewModel.wireguardEnabled.collectAsStateWithLifecycle()
+                val wgConfig by viewModel.wireguardConfig.collectAsStateWithLifecycle()
+                val wgStatus by viewModel.wireguardStatus.collectAsStateWithLifecycle()
+                WireGuardSettingsSection(
+                    enabled = wgEnabled,
+                    config = wgConfig,
+                    status = wgStatus,
+                    onEnabledChange = { viewModel.setWireguardEnabled(it) },
+                    onConfigChange = { viewModel.setWireguardConfig(it) },
                 )
 
                 // Misc settings - always visible

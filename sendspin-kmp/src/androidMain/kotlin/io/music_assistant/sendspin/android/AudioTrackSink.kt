@@ -1,5 +1,7 @@
 package io.music_assistant.sendspin.android
 
+import android.annotation.TargetApi
+
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -66,7 +68,7 @@ public class AudioTrackSink(
         val minBuffer = AudioTrack.getMinBufferSize(format.sampleRate, channelMask, encoding)
         check(minBuffer > 0) { "audio configuration not supported by the device ($minBuffer)" }
 
-        val track = AudioTrack.Builder()
+        val trackBuilder = AudioTrack.Builder()
             .setAudioAttributes(MEDIA_ATTRIBUTES)
             .setAudioFormat(
                 AudioFormat.Builder()
@@ -78,11 +80,11 @@ public class AudioTrackSink(
             // 4x minimum absorbs scheduling jitter while keeping the steady-state fill low.
             .setBufferSizeInBytes(minBuffer * BUFFER_MULTIPLIER)
             .setTransferMode(AudioTrack.MODE_STREAM)
-            // Not LOW_LATENCY: aptX Adaptive "Auto-adjust" switches codec profile on every foreground
-            // change of a low-latency track, which pauses playback (#1141). The extra mixer delay is
-            // unmeasured (latencyMicros = null), a constant offset that matters only for grouping.
-            .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_NONE)
-            .build()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            trackBuilder.setPerformanceMode(AudioTrack.PERFORMANCE_MODE_NONE)
+        }
+        val track = trackBuilder.build()
         if (track.state != AudioTrack.STATE_INITIALIZED) {
             track.release()
             error("AudioTrack failed to initialize")
@@ -92,9 +94,10 @@ public class AudioTrackSink(
             runCatching { track.setStartThresholdInFrames(1) }
         }
         track.play()
+        val perfModeStr = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) ", performanceMode=${track.performanceMode}" else ""
         logger.i {
             "AudioTrack opened: ${format.sampleRate}Hz ${format.channels}ch ${format.bitDepth}bit, " +
-                "buffer ${minBuffer * BUFFER_MULTIPLIER}, performanceMode=${track.performanceMode}"
+                "buffer ${minBuffer * BUFFER_MULTIPLIER}$perfModeStr"
         }
         return Handle(track, format)
     }
@@ -126,10 +129,11 @@ public class AudioTrackSink(
                 AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> runCatching { track.setVolume(DUCK_GAIN) }
             }
         }
-        private val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-            .setAudioAttributes(MEDIA_ATTRIBUTES)
-            .setOnAudioFocusChangeListener(focusListener)
-            .build()
+        private val focusRequest: Any? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            AudioFocusHelper.createFocusRequest(focusListener, MEDIA_ATTRIBUTES)
+        } else {
+            null
+        }
 
         // Headphones unplugged or Bluetooth gone: the output is no longer what the user hears.
         private val noisyReceiver = object : BroadcastReceiver() {
@@ -169,7 +173,12 @@ public class AudioTrackSink(
 
         init {
             track.addOnRoutingChangedListener(routingListener, null)
-            val granted = audioManager.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            val granted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                focusRequest?.let { AudioFocusHelper.requestAudioFocus(audioManager, it as AudioFocusRequest) } ?: false
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager.requestAudioFocus(focusListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            }
             if (!granted) logger.w { "Audio focus not granted; playing anyway" }
             context.registerReceiver(noisyReceiver, IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY))
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -234,7 +243,12 @@ public class AudioTrackSink(
                 track.stop()
             }
             track.release()
-            audioManager.abandonAudioFocusRequest(focusRequest)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                focusRequest?.let { AudioFocusHelper.abandonAudioFocus(audioManager, it as AudioFocusRequest) }
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager.abandonAudioFocus(focusListener)
+            }
             logger.i { "AudioTrack closed (${format.sampleRate}Hz)" }
         }
     }
@@ -246,5 +260,23 @@ public class AudioTrackSink(
             .setUsage(AudioAttributes.USAGE_MEDIA)
             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
             .build()
+    }
+}
+
+@TargetApi(Build.VERSION_CODES.O)
+private object AudioFocusHelper {
+    fun createFocusRequest(listener: AudioManager.OnAudioFocusChangeListener, attributes: AudioAttributes): AudioFocusRequest {
+        return AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+            .setAudioAttributes(attributes)
+            .setOnAudioFocusChangeListener(listener)
+            .build()
+    }
+
+    fun requestAudioFocus(audioManager: AudioManager, request: AudioFocusRequest): Boolean {
+        return audioManager.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+    }
+
+    fun abandonAudioFocus(audioManager: AudioManager, request: AudioFocusRequest) {
+        audioManager.abandonAudioFocusRequest(request)
     }
 }

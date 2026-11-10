@@ -13,8 +13,12 @@ class AndroidBackgroundUsageGuard(
     private val context: Context,
 ) : BackgroundUsageGuard {
     override fun isBackgroundRestricted(): Boolean =
-        (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager)
-            .isBackgroundRestricted // API 28; minSdk = 28
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager)
+                .isBackgroundRestricted
+        } else {
+            false
+        }
 
     override fun openBackgroundUsageSettings() {
         // The background-usage restriction toggle (Unrestricted/Optimized/Restricted, i.e. what

@@ -1,7 +1,54 @@
 package io.music_assistant.sendspin.noise.crypto
 
 import dev.whyoleg.cryptography.CryptographyProvider
+import dev.whyoleg.cryptography.DelicateCryptographyApi
+import dev.whyoleg.cryptography.algorithms.ChaCha20Poly1305
 import dev.whyoleg.cryptography.algorithms.XDH
+
+/**
+ * AEAD cipher backend, split out for platforms (like Android 7.1) where the
+ * platform JCA lacks ChaCha20-Poly1305 support.
+ */
+internal interface AeadBackend {
+    suspend fun encrypt(key: ByteArray, nonce: ByteArray, associatedData: ByteArray, plaintext: ByteArray): ByteArray
+    suspend fun decrypt(key: ByteArray, nonce: ByteArray, associatedData: ByteArray, ciphertext: ByteArray): ByteArray?
+}
+
+internal expect fun defaultAeadBackend(provider: CryptographyProvider): AeadBackend
+
+internal class CryptographyKotlinAeadBackend(
+    private val provider: CryptographyProvider,
+) : AeadBackend {
+    @OptIn(DelicateCryptographyApi::class)
+    override suspend fun encrypt(
+        key: ByteArray,
+        nonce: ByteArray,
+        associatedData: ByteArray,
+        plaintext: ByteArray,
+    ): ByteArray {
+        val cipherKey = provider.get(ChaCha20Poly1305)
+            .keyDecoder()
+            .decodeFromByteArray(ChaCha20Poly1305.Key.Format.RAW, key)
+        return cipherKey.cipher().encryptWithIv(nonce, plaintext, associatedData)
+    }
+
+    @OptIn(DelicateCryptographyApi::class)
+    override suspend fun decrypt(
+        key: ByteArray,
+        nonce: ByteArray,
+        associatedData: ByteArray,
+        ciphertext: ByteArray,
+    ): ByteArray? {
+        val cipherKey = provider.get(ChaCha20Poly1305)
+            .keyDecoder()
+            .decodeFromByteArray(ChaCha20Poly1305.Key.Format.RAW, key)
+        return try {
+            cipherKey.cipher().decryptWithIv(nonce, ciphertext, associatedData)
+        } catch (e: Exception) {
+            null
+        }
+    }
+}
 
 /**
  * The X25519 half of [NoiseCrypto], split out because it is the one primitive

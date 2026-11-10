@@ -13,5 +13,11 @@ actual fun appVersion(platformContext: PlatformContext): AppVersion {
 
         else -> @Suppress("DEPRECATION") packageManager.getPackageInfo(context.packageName, 0)
     }
-    return AppVersion(name = info.versionName.orEmpty(), code = info.longVersionCode.toString())
+    val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        info.longVersionCode
+    } else {
+        @Suppress("DEPRECATION")
+        info.versionCode.toLong()
+    }
+    return AppVersion(name = info.versionName.orEmpty(), code = versionCode.toString())
 }

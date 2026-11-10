@@ -14,6 +14,7 @@ import io.music_assistant.client.data.model.client.SubItemContext
 import io.music_assistant.client.ui.theme.AccentColor
 import io.music_assistant.client.ui.theme.ThemeSetting
 import io.music_assistant.client.utils.myJson
+import io.music_assistant.client.wireguard.WireGuardTunnel
 import io.music_assistant.sendspin.api.AudioCodec
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -423,6 +424,62 @@ class SettingsRepository(
         _allowLandscapeOnAllDevices.update { enabled }
     }
 
+    // In-process WireGuard Userspace Tunnel settings
+    private val _wireguardEnabled = MutableStateFlow(
+        settings.getBoolean("wireguard_enabled", false),
+    )
+    val wireguardEnabled = _wireguardEnabled.asStateFlow()
+
+    private val _wireguardConfig = MutableStateFlow(
+        secrets.getString("wireguard_config", ""),
+    )
+    val wireguardConfig = _wireguardConfig.asStateFlow()
+
+    private val _wireguardStatus = MutableStateFlow(
+        if (_wireguardEnabled.value && _wireguardConfig.value.isNotBlank() && WireGuardTunnel.isSupported()) {
+            val port = WireGuardTunnel.startTunnel(_wireguardConfig.value)
+            if (port > 0) "Connected (Port $port)" else "Failed: " + WireGuardTunnel.getLastError().ifBlank { "Error $port" }
+        } else if (_wireguardEnabled.value && !WireGuardTunnel.isSupported()) {
+            "Not supported on this platform"
+        } else {
+            "Disconnected"
+        }
+    )
+    val wireguardStatus = _wireguardStatus.asStateFlow()
+
+    fun setWireguardConfig(cfg: String) {
+        secrets.putString("wireguard_config", cfg)
+        _wireguardConfig.update { cfg }
+    }
+
+    fun setWireguardEnabled(enabled: Boolean): Int {
+        settings.putBoolean("wireguard_enabled", enabled)
+        _wireguardEnabled.update { enabled }
+        return if (enabled) {
+            val cfg = _wireguardConfig.value
+            if (cfg.isBlank()) {
+                _wireguardStatus.value = "Config is empty"
+                -1
+            } else if (!WireGuardTunnel.isSupported()) {
+                _wireguardStatus.value = "Not supported on this platform"
+                -2
+            } else {
+                val port = WireGuardTunnel.startTunnel(cfg)
+                if (port > 0) {
+                    _wireguardStatus.value = "Connected (Port $port)"
+                } else {
+                    val err = WireGuardTunnel.getLastError().ifBlank { "Error $port" }
+                    _wireguardStatus.value = "Failed: $err"
+                }
+                port
+            }
+        } else {
+            WireGuardTunnel.stopTunnel()
+            _wireguardStatus.value = "Disconnected"
+            0
+        }
+    }
+
     // One-time Local Network onboarding; dismissed, not "first run", so a user who
     // clears it without connecting is not re-prompted on every launch.
     private val _localNetworkOnboardingShown = MutableStateFlow(
@@ -448,7 +505,7 @@ class SettingsRepository(
 
     // Sendspin settings
     private val _sendspinEnabled = MutableStateFlow(
-        settings.getBoolean("sendspin_enabled", false),
+        settings.getBoolean("sendspin_enabled", true),
     )
     val sendspinEnabled = _sendspinEnabled.asStateFlow()
 
@@ -849,11 +906,12 @@ class SettingsRepository(
             "last_connection_mode",
             "connection_history",
             "sendspin_host",
+            "wireguard_config",
         )
 
         val CODECS: List<AudioCodec> = listOf(AudioCodec.OPUS, AudioCodec.FLAC, AudioCodec.PCM)
-        val DEFAULT_CODEC: AudioCodec = AudioCodec.FLAC
-        const val DEVICE_NAME: String = "My Phone"
+        val DEFAULT_CODEC: AudioCodec = AudioCodec.OPUS
+        const val DEVICE_NAME: String = "Echo Show 8"
         const val DEFAULT_SENDSPIN_PORT: Int = 8095
         const val DEFAULT_SENDSPIN_PATH: String = "/sendspin"
 

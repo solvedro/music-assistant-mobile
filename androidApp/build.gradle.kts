@@ -44,7 +44,12 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            val releaseProps = project.file("keystore.properties")
+            signingConfig = if (releaseProps.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("selfSigned")
+            }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -75,7 +80,8 @@ android {
                     it.contains("SelfSignedRelease", ignoreCase = true)
             }
             reset()
-            include("arm64-v8a")
+            include("arm64-v8a", "armeabi-v7a")
+            isUniversalApk = true
         }
     }
 

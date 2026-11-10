@@ -17,6 +17,55 @@ import org.bouncycastle.math.ec.rfc7748.X25519
 internal actual fun defaultX25519Backend(provider: CryptographyProvider): X25519Backend =
     BouncyCastleX25519Backend
 
+internal actual fun defaultAeadBackend(provider: CryptographyProvider): AeadBackend =
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+        CryptographyKotlinAeadBackend(provider)
+    } else {
+        BouncyCastleChaCha20Poly1305Backend
+    }
+
+private object BouncyCastleChaCha20Poly1305Backend : AeadBackend {
+    override suspend fun encrypt(
+        key: ByteArray,
+        nonce: ByteArray,
+        associatedData: ByteArray,
+        plaintext: ByteArray,
+    ): ByteArray {
+        val cipher = org.bouncycastle.crypto.modes.ChaCha20Poly1305()
+        val keyParam = org.bouncycastle.crypto.params.KeyParameter(key)
+        val params = org.bouncycastle.crypto.params.AEADParameters(keyParam, 128, nonce, associatedData)
+        cipher.init(true, params)
+        val out = ByteArray(cipher.getOutputSize(plaintext.size))
+        val len = cipher.processBytes(plaintext, 0, plaintext.size, out, 0)
+        cipher.doFinal(out, len)
+        return out
+    }
+
+    override suspend fun decrypt(
+        key: ByteArray,
+        nonce: ByteArray,
+        associatedData: ByteArray,
+        ciphertext: ByteArray,
+    ): ByteArray? {
+        return try {
+            val cipher = org.bouncycastle.crypto.modes.ChaCha20Poly1305()
+            val keyParam = org.bouncycastle.crypto.params.KeyParameter(key)
+            val params = org.bouncycastle.crypto.params.AEADParameters(keyParam, 128, nonce, associatedData)
+            cipher.init(false, params)
+            val out = ByteArray(cipher.getOutputSize(ciphertext.size))
+            val len = cipher.processBytes(ciphertext, 0, ciphertext.size, out, 0)
+            val finalLen = cipher.doFinal(out, len)
+            if (len + finalLen == out.size) {
+                out
+            } else {
+                out.copyOf(len + finalLen)
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+}
+
 private object BouncyCastleX25519Backend : X25519Backend {
     override suspend fun generateKeyPair(): X25519KeyPair {
         // CryptographyRandom is the same CSPRNG the rest of NoiseCrypto draws
