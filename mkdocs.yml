@@ -1,8 +1,8 @@
 site_name: Music Assistant Mobile App
 site_description: User documentation for the Music Assistant mobile app for Android and iOS.
 site_url: https://music-assistant.github.io/mobile-app/
-repo_url: https://github.com/music-assistant/mobile-app
-repo_name: music-assistant/mobile-app
+repo_url: https://github.com/solvedro/music-assistant-mobile
+repo_name: solvedro/music-assistant-mobile
 edit_uri: edit/main/docs/app-documentation/
 
 # Only user-facing docs are published; developer docs in docs/ stay out.

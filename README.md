@@ -1,85 +1,88 @@
-# Music Assistant Mobile app
+# Music Assistant Mobile — Echo Show 8 & Smart Display Edition
 
-*Please note: that this project is still under (heavy) development and not yet in a production state or published to any of the app stores. Development work is in progress to allow this project to become the official mobile app for the Music Assistant project.*
-
-The (official) Music Assistant Mobile app is a cross-platform client application designed for Android and iOS. Developed using Kotlin Multiplatform (KMP) and Compose Multiplatform frameworks, this project aims to provide a unified codebase for seamless music management across mobile platforms.
+> **Fork Notice:** This repository is an enhanced fork of the official [Music Assistant Mobile App](https://github.com/music-assistant/mobile-app) (`music-assistant/mobile-app`), specifically modified for **smart displays** (such as the Amazon Echo Show 8 1st/2nd Gen) and older Android devices, featuring a **side-by-side synchronized lyrics mode**, **AudioTrack playback fixes**, and **minSdk 25** compatibility.
+> 
+> * **Upstream Repository:** [music-assistant/mobile-app](https://github.com/music-assistant/mobile-app)
+> * **Music Assistant Server:** [music-assistant/server](https://github.com/music-assistant/server)
 
 <p align="center">
-  <img src="docs/screenshots/echo-show-8-lyrics.png" alt="Music Assistant on Echo Show 8 with side-by-side synchronized lyrics mode" width="850">
+  <img src="docs/screenshots/echo-show-8-lyrics.png" alt="Music Assistant running on Amazon Echo Show 8 with side-by-side synchronized lyrics mode" width="850">
+  <br>
+  <em>Music Assistant running on Amazon Echo Show 8 (FireOS 6 / Android 7.1.2) with side-by-side synchronized lyrics and tap-to-seek</em>
 </p>
-
-## Features
-
-*Disclaimer: This app is not intended to provide offline playback*
-
-- All platforms:
-  - managing MA players queues and playback;
-  - managing dynamic and static groups (no static group creation);
-  - local playback on device from MA library (Sendspin streaming protocol over WebRTC or WebSocket);
-  - comprehensive Settings screen with section-based UI for server connection, authentication (builtin/OAuth), and local player configuration;
-  - side-by-side landscape mode on tablets and smart displays (e.g. Echo Show 8) with real-time synchronized lyrics, centered auto-scrolling, tap-to-seek, and automatic LRCLIB fallback.
-- Android-specific:
-  - requires Android 7.1.2 (API 25) or later (including FireOS 6 on Amazon Echo Show 8 1st/2nd Gen); 
-  - media service (background playback) and media notification in system area for quick access to players controls;
-  - Android Auto support for the built-in player, plus voice playback ("Hey Google, play *X* on Music Assistant") via Google Assistant and Gemini App Actions — works in the car *and* on the phone, single symmetric code path. Full phrase reference, architecture notes and testing in [ANDROID-AUTO.md](docs/ANDROID-AUTO.md).
-- iOS-specific:
-  - requires iOS 18.5 or later; 
-  - native audio playback via AudioQueue (CoreAudio) with support for FLAC, Opus, and PCM;
-  - Lock Screen and Control Center integration (Now Playing info, play/pause/next/prev remote commands);
-  - background audio playback with automatic resume after phone call or Siri interruptions;
-  - WebRTC data channel transport for low-latency Sendspin streaming;
-  - Apple CarPlay support for built-in player (very early state, a lot of bugs are expected);
-  - *known issue:* artwork may be missing in certain setups, for example peer-to-peer mesh VPN setups such as Tailscale. We're aware of this and looking into it, but we don't have an ETA on a fix yet.
-    - Why: iOS App Transport Security (ATS) blocks image requests to insecure hosts, with an exception for local networks. On your LAN, artwork loads fine, but over Tailscale and similar VPNs the server appears to the phone as a remote host, so ATS kicks in and blocks the requests.
-
-### Server compatibility
-
-Releases of the Music Assistant Mobile App are intended to support the latest [Music Assistant Server](https://github.com/music-assistant/server) stable versions.
-
-### Design goals
-
-The goal of this app is to provide an iOS and Android native feeling experience for playing and controlling audio via Music Assistant on both Android/iOS phones and tablets. This means that as well as making it easy to navigate the MA library and sources, this shouldn't come at the expense of being able to quickly control players. Specifically, these actions should be available as quickly as possible when opening the app in pretty much any state:
-
-- See what's playing on the app's current player
-- Change the current player
-- Play/pause current player
-- Transfer playback to another player
-- Group current player with another player
-- Navigate to "global" (across all sources) search
-- Return to home screen
-- Skip to next track
-- Start browsing library
-- Open settings
-
-The app's built-in Local player is designed to be a private player for a personal music experience. It plays music on your device, for you, while you're using it. This is different from the many other players Music Assistant supports, like speakers, that stay on and available all the time. The app's Local player isn't meant to be one of those, and by default you can't find it or control it from other apps.
-
-Compatibility with Apple CarPlay and Android Auto is a core focus, ensuring you can enjoy your music easily and safely through your car’s infotainment system. These in-car experiences are dedicated exclusively to the local player; managing external players is out of scope.
-
-In addition, there's some general design directions that are being observed:
-
-- Optimize for searching/filtering/drilling-down to smaller lists of items over large list navigation
-- Keep customization settings as close to the place they affect over maintaining a "centralized" or "global" set of customization settings
-
-## Want to try it?
-
-Android users can download the APK [for the latest release](https://github.com/music-assistant/mobile-app/releases).
-
-iOS users can join [TestFlight](https://testflight.apple.com/join/AkvSDf2z).
-
-### Configuring and using the app
-
-For information on configuring and using the Music Assistant Mobile app, see the [App Documentation](docs/app-documentation/index.md).
-
-## Android Auto & Google Assistant
-
-See [ANDROID-AUTO](docs/ANDROID-AUTO.md) for:
-
-- enabling Android Auto with sideloaded debug/self-signed builds (Unknown sources flow);
-- the library browsing layout on the head unit;
-- the full list of supported Google Assistant voice phrases (works in the car *and* on the phone);
-- shell-based testing of `MEDIA_PLAY_FROM_SEARCH` intents;
-- known limitations.
 
 ---
 
-[![A project from the Open Home Foundation](https://www.openhomefoundation.org/badges/ohf-project.png)](https://www.openhomefoundation.org/)
+## 🌟 Fork Key Modifications & Features
+
+### 1. Amazon Echo Show 8 & Older Android Support (API 25+ / FireOS 6)
+- **Lowered `minSdk` to 25:** Enables installation and reliable execution on Android 7.1.2 Nougat / FireOS 6 devices (such as the Amazon Echo Show 8 1st Gen `crown` and 2nd Gen).
+- **`AudioTrackSink` Playback Fixes:** Resolved audio output crashes and buffer underruns on older Android audio HALs by properly configuring stereo channel masks (`AudioFormat.CHANNEL_OUT_STEREO`), buffer size calculations, and PCM sample routing.
+- **X25519 Noise Protocol Cryptography Fallback:** Standard Android Nougat lacks native JCA support for `KeyFactory.getInstance("X25519")` (introduced in API 33). Added a pure Kotlin / BouncyCastle X25519 cryptographic fallback to ensure encrypted Sendspin local audio streaming works out-of-the-box.
+- **Smart Display Form-Factor Optimization:** Tuned window sizing, touch targets, and layout responsiveness for the Echo Show 8's 1280x800 landscape display.
+
+### 2. Synchronized Lyrics Mode & Smart Display Layout
+- **Side-by-Side Tablet / Smart Display Layout:** On wide landscape displays (`WindowClass.isWide()`), the bottom modal sheet is suppressed in favor of a 2-column layout matching the Music Assistant Web player.
+- **Real-Time Synchronized Lyrics:** Automatically tracks playback position, auto-scrolls smoothly, and centers the current active line in bold typography while dimming surrounding lines.
+- **Tap-to-Seek:** Tap any synchronized lyric line to immediately seek playback (`PlayerAction.SeekTo`) to that exact moment and re-center the viewport.
+- **Multi-Source Lyrics & LRCLIB Fallback:** Seamlessly resolves lyrics in priority order:
+  1. Embedded track metadata (instant fast path).
+  2. Music Assistant server API (`metadata/get_track_lyrics`).
+  3. Open [LRCLIB](https://lrclib.net) database fallback with automatic query cleaning (stripping radio markers, parentheticals, and `Artist - Title` radio formats).
+  4. Fully supports both library tracks and live radio / stream metadata (`player.currentMedia`).
+- **Intuitive Controls:** Tap the album artwork, the player controls lyrics icon, or the panel close button (`✕`) to seamlessly toggle between the Queue and the Lyrics view.
+
+---
+
+## 🚀 Building & Installing
+
+### Prerequisites
+- JDK 17 or later
+- Android SDK with platform API 36 / build-tools installed
+- Target device connected via USB or ADB over Wi-Fi (e.g. `adb connect 192.168.x.x:5555`)
+
+### 1. Build the Android APK
+```bash
+# Clone this repository
+git clone git@github.com:solvedro/music-assistant-mobile.git
+cd music-assistant-mobile
+
+# Assemble Debug APK
+./gradlew :androidApp:assembleDebug
+```
+The compiled APK will be at:
+`androidApp/build/outputs/apk/debug/androidApp-debug.apk`
+
+### 2. Install on Amazon Echo Show 8 (or Android device)
+```bash
+# Connect to your Echo Show via ADB (if using network debugging)
+adb connect 192.168.100.10:5555
+
+# Sideload the APK
+adb -s 192.168.100.10:5555 install -r androidApp/build/outputs/apk/debug/androidApp-debug.apk
+
+# Launch Music Assistant
+adb -s 192.168.100.10:5555 shell monkey -p io.music_assistant.client -c android.intent.category.LAUNCHER 1
+```
+
+---
+
+## 📱 Upstream Core Features
+
+This fork retains the full feature set of the cross-platform Music Assistant mobile client:
+- **Queue & Playback Management:** Control players, queues, volume, playback speed, and DSP settings across all Music Assistant players.
+- **Grouping:** Manage dynamic and static player groups.
+- **Sendspin Local Streaming:** Stream high-resolution audio directly to your device over WebRTC or WebSocket.
+- **Comprehensive Settings:** Server connection, authentication (built-in and OAuth), player delays, and local player configuration.
+- **Android Auto Support:** Media service, notification controls, and Google Assistant voice actions.
+
+---
+
+## 🔗 Server Compatibility & Upstream Project
+
+- **Server Compatibility:** Requires a running instance of [Music Assistant Server](https://github.com/music-assistant/server) (v2.x).
+- **Official Mobile App:** For the upstream development project, see [music-assistant/mobile-app](https://github.com/music-assistant/mobile-app).
+
+---
+
+[![Music Assistant](https://www.openhomefoundation.org/badges/ohf-project.png)](https://www.openhomefoundation.org/)
