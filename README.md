@@ -1,6 +1,6 @@
-# Music Assistant Mobile — Echo Show 8 & Smart Display Edition
+# Music Assistant Mobile — Echo Show & Smart Display Edition
 
-> **Fork Notice:** This repository is an enhanced fork of the official [Music Assistant Mobile App](https://github.com/music-assistant/mobile-app) (`music-assistant/mobile-app`), specifically modified for **smart displays** (such as the Amazon Echo Show 8 1st/2nd Gen) and older Android devices, featuring a **side-by-side synchronized lyrics mode**, **AudioTrack playback fixes**, and **minSdk 25** compatibility.
+> **Fork Notice:** This repository is an enhanced fork of the official [Music Assistant Mobile App](https://github.com/music-assistant/mobile-app) (`music-assistant/mobile-app`), specifically modified for **Amazon Echo Show devices** (tested on Echo Show 8 1st Gen, compatible with any rooted / sideloadable Echo Show or older Android device), featuring a **side-by-side synchronized lyrics mode**, **AudioTrack playback fixes**, and **minSdk 25** compatibility.
 > 
 > * **Upstream Repository:** [music-assistant/mobile-app](https://github.com/music-assistant/mobile-app)
 > * **Music Assistant Server:** [music-assistant/server](https://github.com/music-assistant/server)
@@ -15,11 +15,13 @@
 
 ## 🌟 Fork Key Modifications & Features
 
-### 1. Amazon Echo Show 8 & Older Android Support (API 25+ / FireOS 6)
-- **Lowered `minSdk` to 25:** Enables installation and reliable execution on Android 7.1.2 Nougat / FireOS 6 devices (such as the Amazon Echo Show 8 1st Gen `crown` and 2nd Gen).
+### 1. Amazon Echo Show & Older Android Support (API 25+ / FireOS)
+- **Tested on Echo Show 8 (1st Gen):** Fully tested, verified, and running smoothly on an Amazon Echo Show 8 1st Gen (`crown`, FireOS 6 / Android 7.1.2 Nougat).
+- **Works on Any Sideloadable Echo Show:** Compatible with any Amazon Echo Show device where APK sideloading is available (rooted, bootloader unlocked, or running custom FireOS builds, e.g. Echo Show 5, Echo Show 8 1st/2nd Gen, Echo Show 10, Echo Show 15) as well as older Android tablets.
+- **Lowered `minSdk` to 25:** Enables installation and reliable execution on Android 7.1.2 Nougat / FireOS 6+ devices without crashing on unsupported higher APIs.
 - **`AudioTrackSink` Playback Fixes:** Resolved audio output crashes and buffer underruns on older Android audio HALs by properly configuring stereo channel masks (`AudioFormat.CHANNEL_OUT_STEREO`), buffer size calculations, and PCM sample routing.
 - **X25519 Noise Protocol Cryptography Fallback:** Standard Android Nougat lacks native JCA support for `KeyFactory.getInstance("X25519")` (introduced in API 33). Added a pure Kotlin / BouncyCastle X25519 cryptographic fallback to ensure encrypted Sendspin local audio streaming works out-of-the-box.
-- **Smart Display Form-Factor Optimization:** Tuned window sizing, touch targets, and layout responsiveness for the Echo Show 8's 1280x800 landscape display.
+- **Smart Display Form-Factor Optimization:** Tuned window sizing, touch targets, and layout responsiveness for smart display landscape dimensions (e.g. 1280x800).
 
 ### 2. Synchronized Lyrics Mode & Smart Display Layout
 - **Side-by-Side Tablet / Smart Display Layout:** On wide landscape displays (`WindowClass.isWide()`), the bottom modal sheet is suppressed in favor of a 2-column layout matching the Music Assistant Web player.
@@ -39,7 +41,7 @@
 ### Prerequisites
 - JDK 17 or later
 - Android SDK with platform API 36 / build-tools installed
-- Target device connected via USB or ADB over Wi-Fi (e.g. `adb connect 192.168.x.x:5555`)
+- Target device connected via USB or ADB over Wi-Fi (e.g. `adb connect <DEVICE_IP>:5555`)
 
 ### 1. Build the Android APK
 ```bash
@@ -53,16 +55,16 @@ cd music-assistant-mobile
 The compiled APK will be at:
 `androidApp/build/outputs/apk/debug/androidApp-debug.apk`
 
-### 2. Install on Amazon Echo Show 8 (or Android device)
+### 2. Install on Amazon Echo Show (or any Android device)
 ```bash
 # Connect to your Echo Show via ADB (if using network debugging)
-adb connect 192.168.100.10:5555
+adb connect <DEVICE_IP>:5555
 
 # Sideload the APK
-adb -s 192.168.100.10:5555 install -r androidApp/build/outputs/apk/debug/androidApp-debug.apk
+adb -s <DEVICE_IP>:5555 install -r androidApp/build/outputs/apk/debug/androidApp-debug.apk
 
 # Launch Music Assistant
-adb -s 192.168.100.10:5555 shell monkey -p io.music_assistant.client -c android.intent.category.LAUNCHER 1
+adb -s <DEVICE_IP>:5555 shell monkey -p io.music_assistant.client -c android.intent.category.LAUNCHER 1
 ```
 
 ---
